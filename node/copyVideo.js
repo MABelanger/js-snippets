@@ -6,7 +6,7 @@ const SECONDS_SEPARATOR = ':';
 
 // Value to change ....
 const IN_VIDEO_FILE = "videoIn.mp4";
-const PARTS = [
+const VIDEO_PARTS = [
   "00:11:05-00:14:10 | example 1",
   "00:19:11-00:20:44 | example 2",
   "00:23:20-00:26:00 | example 3",
@@ -29,58 +29,77 @@ function getSeconds(timeString) {
    return parseInt(c[0]) * 3600 + parseInt(c[1]) * 60 + parseInt(c[2]);
 }
 
-function getParsedData(part) {
-  let title = part.split(MAIN_SEPARATOR)[1];
+// calc the number of deltaSeconds
+function getDeltaSeconds(start, end) {
+  let deltaSeconds = getSeconds(end) - getSeconds(start);
+  return deltaSeconds;
+}
 
-  let times = part.split(MAIN_SEPARATOR)[0];
-  let start = times.split(START_END_SEPARATOR)[0];
-  let end = times.split(START_END_SEPARATOR)[1];
+function getParsedData(videoPart) {
+  let title = videoPart.split(MAIN_SEPARATOR)[1];
 
-  // calc the number of seconds
-  let seconds = getSeconds(end) - getSeconds(start);
+  let timesColon = videoPart.split(MAIN_SEPARATOR)[0];
+  let start = timesColon.split(START_END_SEPARATOR)[0];
+  let end = timesColon.split(START_END_SEPARATOR)[1];
+
+  let deltaSeconds = getDeltaSeconds(start, end)
 
   return {
-    times,
+    timesColon,
     title,
     start,
     end,
-    seconds
+    deltaSeconds
   };
 }
 
-function getInFileName(inVideoFile) {
-  return "'" + inVideoFile + "'";
+function getTimesDot(timesColon) {
+  return timesColon.replace(/\:/g, '.')
 }
 
-function getOutFileName(inVideoFile, nbEncodedVideo, times, title) {
-  return " '" +
-    inVideoFile + "-" +
-    padZeros(nbEncodedVideo, 3) + "-" +
-    times.replace(/\:/g, '.') +
-    "-" + title + ".mp4" +
-    "'";
+function getInFileName(inVideoFile) {
+  return " '" + inVideoFile + "' ";
+}
+
+function getOutFileName(inVideoFile, nbEncodedVideo, timesColon, title) {
+
+  let nbEncodedVideoPadded = padZeros(nbEncodedVideo, 3); // 1 -> 001
+  let timesDot = getTimesDot(timesColon); // 00:00:03-00:00:08 -> 00.00.03-00.00.08
+
+  let outFileName =
+    " '" +
+    inVideoFile +
+    "-" +
+    nbEncodedVideoPadded +
+    "-" +
+    timesDot +
+    "-" +
+    title +
+    ".mp4" +
+    "' ";
+
+    // " 'videoIn.mp4-000-00.00.03-00.00.08-example 1.mp4' "
+    return outFileName;
 }
 
 function getCmd(parsedData, nbEncodedVideo) {
-  let { times, title, start, seconds } = parsedData;
+  let { timesColon, title, start, deltaSeconds } = parsedData;
 
   // recompress audio to mono : -ac 1
   // recompress without black frame : -async 1
   let cmd =
-    "ffmpeg -i " +
-    getInFileName(IN_VIDEO_FILE) +
+    "ffmpeg -i " + getInFileName(IN_VIDEO_FILE) +
     " -c copy " +
     " -ss " + start +
-    " -t " + seconds +
+    " -t " + deltaSeconds +
     " -y " +
-    getOutFileName(IN_VIDEO_FILE, nbEncodedVideo, times, title);
+    getOutFileName(IN_VIDEO_FILE, nbEncodedVideo, timesColon, title);
 
   return cmd;
 }
 
-
-PARTS.map(part => {
-  let parsedData = getParsedData(part);
+VIDEO_PARTS.map(videoPart => {
+  let parsedData = getParsedData(videoPart);
   let cmd = getCmd(parsedData, nbEncodedVideo);
   //console.log('cmd', cmd)
   code = execSync(cmd);
